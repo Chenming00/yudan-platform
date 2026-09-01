@@ -43,5 +43,5 @@ export async function verifyApiCredential(
     data: { lastUsedAt: new Date() },
   });
 
-  return { credentialId: record.id, householdId: record.householdId };
+  return { credentialId: record.id, householdId: record.householdId, createdByUserId: record.createdByUserId };
 }

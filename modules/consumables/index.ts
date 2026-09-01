@@ -1,6 +1,32 @@
 export type {
+  ConsumablePurchaseItemInput,
   ConsumablesService,
+  ConsumablesSummary,
+  CreateConsumablePurchaseInput,
+  CreateProductInput,
+  InventoryLogView,
+  InventoryOperationResult,
+  ProductGroupView,
+  ProductStockStatus,
+  ProductView,
   ReceiveStockInput,
   StockEntrySource,
+  StockEntryView,
 } from "./types";
-
+export {
+  addProductGroupItem,
+  consumeStock,
+  consumablesService,
+  countStock,
+  createProduct,
+  createProductGroup,
+  createPurchase,
+  getSummary,
+  listLogs,
+  listProductGroups,
+  listProducts,
+  listStockEntries,
+  receiveStock,
+  adjustStockEntry,
+  undoInventoryLog,
+} from "./service";

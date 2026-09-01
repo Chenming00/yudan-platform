@@ -1,0 +1,6 @@
+import { NextResponse } from "next/server";
+import { getConsumablesApiContext } from "@/lib/api/consumables";
+import { ledgerApiError, requestIdFrom } from "@/lib/api/ledger";
+import { receiveStock } from "@/modules/consumables";
+import { receiveStockSchema } from "@/modules/consumables/schemas";
+export async function POST(request: Request) { const requestId = requestIdFrom(request); try { const body = await request.json(); const parsed = receiveStockSchema.safeParse({ productCode: body.product_code, quantity: Number(body.quantity), source: "HISTORICAL", expiresOn: body.expiry_date || undefined, storageLocation: body.storage_location || undefined, sourceLabel: body.purchase_source || undefined, totalCost: body.purchase_price == null ? undefined : String(body.purchase_price), note: body.note || undefined }); if (!parsed.success) return NextResponse.json({ success: false, message: "商品、数量或到期日期不正确" }, { status: 400 }); const result = await receiveStock(await getConsumablesApiContext(request, "consumables.write", requestId), parsed.data); return NextResponse.json({ success: true, message: "入库成功", batch_code: result.stockEntryCode, data: result }); } catch (error) { return ledgerApiError(error, requestId); } }

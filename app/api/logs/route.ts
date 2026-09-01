@@ -1,0 +1,5 @@
+import { NextResponse } from "next/server";
+import { getConsumablesApiContext } from "@/lib/api/consumables";
+import { ledgerApiError, requestIdFrom } from "@/lib/api/ledger";
+import { listLogs } from "@/modules/consumables";
+export async function GET(request: Request) { const requestId = requestIdFrom(request); try { const url = new URL(request.url); const productCode = url.searchParams.get("product_code"); const action = url.searchParams.get("action_type"); const rows = await listLogs(await getConsumablesApiContext(request, "consumables.read", requestId), Number(url.searchParams.get("limit") ?? 50)); return NextResponse.json({ success: true, data: rows.filter((item) => (!productCode || item.productCode === productCode) && (!action || item.actionType === action)).map((item) => ({ id: item.id, product_code: item.productCode, action_type: item.actionType, quantity: item.quantity, reason: item.reason, note: item.note, created_at: item.createdAt, product: { name: item.productName } })) }); } catch (error) { return ledgerApiError(error, requestId); } }

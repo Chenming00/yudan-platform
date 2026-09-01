@@ -1,0 +1,5 @@
+import { NextResponse } from "next/server";
+import { getConsumablesApiContext } from "@/lib/api/consumables";
+import { ledgerApiError, requestIdFrom } from "@/lib/api/ledger";
+import { listStockEntries } from "@/modules/consumables";
+export async function GET(request: Request) { const requestId = requestIdFrom(request); try { const url = new URL(request.url); const rows = await listStockEntries(await getConsumablesApiContext(request, "consumables.read", requestId), { productCode: url.searchParams.get("product_code") || undefined, status: url.searchParams.get("status") || undefined, attention: ["attention", "expired", "near_expiry"].includes(url.searchParams.get("filter") ?? "") }); return NextResponse.json({ success: true, data: rows.map((item) => ({ id: item.id, batch_code: item.stockEntryCode, product_code: item.productCode, init_quantity: item.initialQuantity, available_quantity: item.availableQuantity, expiry_date: item.expiresOn, storage_location: item.storageLocation, purchase_source: item.source, status: item.status, created_at: item.createdAt, product: { name: item.productName } })) }); } catch (error) { return ledgerApiError(error, requestId); } }

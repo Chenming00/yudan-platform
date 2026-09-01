@@ -1,0 +1,7 @@
+import { NextResponse } from "next/server";
+import { getConsumablesApiContext } from "@/lib/api/consumables";
+import { ledgerApiError, requestIdFrom } from "@/lib/api/ledger";
+import { createProductGroup, listProductGroups } from "@/modules/consumables";
+import { productGroupSchema } from "@/modules/consumables/schemas";
+export async function GET(request: Request) { const requestId = requestIdFrom(request); try { const rows = await listProductGroups(await getConsumablesApiContext(request, "consumables.read", requestId)); return NextResponse.json({ success: true, data: rows.map((item) => ({ group_code: item.groupCode, name: item.name, description: item.description, _count: { items: item.itemCount } })) }); } catch (error) { return ledgerApiError(error, requestId); } }
+export async function POST(request: Request) { const requestId = requestIdFrom(request); try { const body = await request.json(); const parsed = productGroupSchema.safeParse({ name: body.name, description: body.description, sortOrder: body.sort_order }); if (!parsed.success) return NextResponse.json({ success: false, message: "产品组名称不正确" }, { status: 400 }); const item = await createProductGroup(await getConsumablesApiContext(request, "consumables.write", requestId), parsed.data); return NextResponse.json({ success: true, data: { group_code: item.groupCode, name: item.name, description: item.description } }, { status: 201 }); } catch (error) { return ledgerApiError(error, requestId); } }
