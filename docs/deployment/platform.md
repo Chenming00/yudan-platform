@@ -8,6 +8,8 @@
 | Supabase | PostgreSQL、邮箱密码 Auth、可选 GitHub Identity、会话与 RLS |
 | Cloudflare | R2 图片/附件存储与 CDN 分发 |
 
+生产主站为 `https://cyz.ykn.cm`；公开 R2 资源域名为 `https://cf-cyz.ykn.cm`。所有 HTTP 请求应重定向到 HTTPS。
+
 ## 数据库连接
 
 - `DATABASE_URL`：Vercel 运行时使用 Supavisor transaction mode（通常为 6543），适合短生命周期 Serverless 连接；
@@ -30,6 +32,8 @@
 
 数据库变更使用两阶段发布：先运行向后兼容 Migration 并验证，再提升已验证的应用构建。出现应用问题时回滚 Vercel Deployment；数据库变更使用预先写好的兼容或回退步骤，不能假定应用回滚会自动回滚数据库。
 
+截至 2026-09-01，Vercel 中仍只有两个旧项目，尚未创建 `yudan-platform`。目标项目创建后再绑定 `cyz.ykn.cm`；在目标 Schema、环境变量和 Preview 验证通过前，不切换生产域名。
+
 ## 环境变量范围
 
 浏览器可见：
@@ -45,6 +49,15 @@
 - `DIRECT_URL`
 - `SUPER_ADMIN_EMAIL`
 - 所有 R2 凭据与 Bucket 名称
+
+生产非敏感值固定为：
+
+```text
+NEXT_PUBLIC_APP_URL=https://cyz.ykn.cm
+R2_PRIVATE_BUCKET=cyz-private
+R2_PUBLIC_BUCKET=cyz-public
+R2_PUBLIC_BASE_URL=https://cf-cyz.ykn.cm
+```
 
 Vercel、Supabase、可选 GitHub Provider 和 Cloudflare 的真实密钥只配置在服务控制台；`.env.example` 只保存变量名和非敏感本地默认值。
 

@@ -17,8 +17,8 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "migration:yudan:dry-run": "tsx scripts/migration/migrate-yudan.ts",
-    "migration:yudan:apply": "tsx scripts/migration/migrate-yudan.ts --apply"
+    "migration:yudan:dry-run": "tsx scripts/migration/migrate-yudan.ts --report=artifacts/migration/yudan-dry-run.json",
+    "migration:yudan:apply": "tsx scripts/migration/migrate-yudan.ts --apply --report=artifacts/migration/yudan-apply.json"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1123.0",

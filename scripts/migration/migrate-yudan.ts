@@ -1,14 +1,25 @@
 import "dotenv/config";
 
 import { createHash } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 
 import pg, { type PoolClient } from "pg";
 
 import { mapLegacyCategory } from "./category-map";
+import { buildLedgerReport, buildMigrationChecks, type PantryReport } from "./report";
 
 const { Pool } = pg;
 const sourceProject = "YUDAN";
 const applyChanges = process.argv.includes("--apply");
+
+function argumentValue(name: string) {
+  const prefix = `--${name}=`;
+  const inline = process.argv.find((argument) => argument.startsWith(prefix));
+  if (inline) return inline.slice(prefix.length);
+  const index = process.argv.indexOf(`--${name}`);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+}
 
 type LegacyTransaction = {
   id: string;
@@ -82,65 +93,123 @@ function sourceHash(value: unknown) {
 
 async function readSourceData(sourceUrl: string) {
   const source = new Pool({ connectionString: sourceUrl, max: 1 });
+  const client = await source.connect();
 
   try {
+    await client.query("begin read only");
+    await client.query("set local statement_timeout = '30s'");
     const [transactions, dashboards, growth, vaccineCatalog, vaccineRecords] =
       await Promise.all([
-        source.query<LegacyTransaction>(
+        client.query<LegacyTransaction>(
           "select id, amount, category, note, type, created_at, transaction_time from public.transactions order by coalesce(transaction_time, created_at), id",
         ),
-        source.query<LegacyDashboard>(
+        client.query<LegacyDashboard>(
           "select user_id, birthday from public.yudan_dashboards order by user_id",
         ),
-        source.query<LegacyGrowthRecord>(
+        client.query<LegacyGrowthRecord>(
           "select id, user_id, measured_on, weight_kg, height_cm, head_circumference_cm, note, legacy_id, created_at, updated_at from public.yudan_weight_records order by measured_on, id",
         ),
-        source.query<LegacyVaccineCatalog>(
+        client.query<LegacyVaccineCatalog>(
           "select id, sort_order, age_months, age_label, vaccine, dose, funding, date_rule, date_offset_days, source, active, updated_at, region, schedule_version, prevents, aliases, audience, schedule_note from public.yudan_vaccine_catalog order by sort_order",
         ),
-        source.query<LegacyVaccineRecord>(
+        client.query<LegacyVaccineRecord>(
           "select id, user_id, plan_id, administered_on, place, batch_no, manufacturer, note, legacy_id, created_at, updated_at from public.yudan_vaccine_records order by administered_on, id",
         ),
       ]);
 
-    return {
+    const result = {
       transactions: transactions.rows,
       dashboards: dashboards.rows,
       growth: growth.rows,
       vaccineCatalog: vaccineCatalog.rows,
       vaccineRecords: vaccineRecords.rows,
     };
+    await client.query("rollback");
+    return result;
   } finally {
+    client.release();
     await source.end();
   }
 }
 
-function buildSourceReport(data: Awaited<ReturnType<typeof readSourceData>>) {
-  const ledger = data.transactions.reduce(
-    (summary, row) => {
-      summary.count += 1;
-      summary.total += Number(row.amount);
-      const allocationModule = mapLegacyCategory(row.category).module;
-      summary.byModule[allocationModule] =
-        (summary.byModule[allocationModule] ?? 0) + 1;
-      return summary;
-    },
-    {
-      count: 0,
-      total: 0,
-      byModule: {} as Record<string, number>,
-    },
-  );
+async function readPantryData(sourceUrl: string): Promise<PantryReport> {
+  const pool = new Pool({ connectionString: sourceUrl, max: 1 });
+  const client = await pool.connect();
+  try {
+    await client.query("begin read only");
+    await client.query("set local statement_timeout = '30s'");
+    const counts = await client.query<{
+      product_count: number; stock_entry_count: number; inventory_log_count: number;
+      product_group_count: number; product_group_item_count: number; available_quantity: number;
+      platform_schema_ready: boolean;
+    }>(`select
+      (select count(*)::int from public.products) product_count,
+      (select count(*)::int from public.inventory_batches) stock_entry_count,
+      (select count(*)::int from public.inventory_logs) inventory_log_count,
+      (select count(*)::int from public.product_groups) product_group_count,
+      (select count(*)::int from public.product_group_items) product_group_item_count,
+      (select coalesce(sum(available_quantity), 0)::int from public.inventory_batches) available_quantity,
+      to_regclass('public.legacy_import_maps') is not null platform_schema_ready`);
+    const stock = await client.query<{ product_code: string; available_quantity: number }>(`select
+      p.product_code, coalesce(sum(b.available_quantity), 0)::int available_quantity
+      from public.products p left join public.inventory_batches b on b.product_code = p.product_code
+      group by p.product_code order by p.product_code`);
+    await client.query("rollback");
+    const row = counts.rows[0];
+    return {
+      productCount: row.product_count,
+      stockEntryCount: row.stock_entry_count,
+      inventoryLogCount: row.inventory_log_count,
+      productGroupCount: row.product_group_count,
+      productGroupItemCount: row.product_group_item_count,
+      availableQuantity: row.available_quantity,
+      platformSchemaReady: row.platform_schema_ready,
+      stockByProduct: stock.rows.map((item) => ({ productCode: item.product_code, availableQuantity: item.available_quantity })),
+    };
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
 
+function buildSourceReport(data: Awaited<ReturnType<typeof readSourceData>>, pantry: PantryReport) {
+  const babyProfiles = data.dashboards.length;
+  const distinctBirthdays = new Set(data.dashboards.map((row) => row.birthday)).size;
+  const ledger = buildLedgerReport(data.transactions.map((row) => ({
+    amount: row.amount,
+    category: row.category,
+    type: row.type,
+    occurredAt: row.transaction_time ?? row.created_at,
+  })), process.env.APP_TIME_ZONE || "Asia/Shanghai");
+  const validation = buildMigrationChecks({ ledgerCount: ledger.count, babyProfiles, distinctBirthdays, pantry });
   return {
+    version: 1,
+    generatedAt: new Date().toISOString(),
     mode: applyChanges ? "apply" : "dry-run",
-    ledger: { ...ledger, total: ledger.total.toFixed(2) },
-    babyProfiles: data.dashboards.length,
-    distinctBirthdays: new Set(data.dashboards.map((row) => row.birthday)).size,
-    growthRecords: data.growth.length,
-    vaccineCatalog: data.vaccineCatalog.length,
-    vaccineRecords: data.vaccineRecords.length,
+    sources: {
+      yudan: {
+        ledger,
+        babyProfiles,
+        distinctBirthdays,
+        growthRecords: data.growth.length,
+        vaccineCatalog: data.vaccineCatalog.length,
+        vaccineRecords: data.vaccineRecords.length,
+      },
+      pantry,
+    },
+    ...validation,
   };
+}
+
+async function outputReport(report: unknown) {
+  const serialized = `${JSON.stringify(report, null, 2)}\n`;
+  console.log(serialized.trimEnd());
+  const reportPath = argumentValue("report");
+  if (!reportPath) return;
+  const absolutePath = resolve(reportPath);
+  await mkdir(dirname(absolutePath), { recursive: true });
+  await writeFile(absolutePath, serialized, "utf8");
+  console.log(`Migration report written to ${absolutePath}`);
 }
 
 async function assertTarget(
@@ -364,7 +433,7 @@ async function importHealth(
   }
 }
 
-async function targetReport(target: PoolClient) {
+async function targetReport(target: PoolClient, vaccineCatalogIds: string[]) {
   const result = await target.query(
     `select source_table, count(*)::int imported_rows
      from public.legacy_import_maps
@@ -372,25 +441,89 @@ async function targetReport(target: PoolClient) {
      group by source_table order by source_table`,
     [sourceProject],
   );
-  const ledger = await target.query(
-    `select count(*)::int row_count, coalesce(sum(t.amount), 0)::numeric(14,2) total
+  const ledger = await target.query<{
+    row_count: number; income: string; expense: string;
+  }>(
+    `select count(*)::int row_count,
+       coalesce(sum(t.amount) filter (where t.type = 'INCOME'), 0)::numeric(14,2)::text income,
+       coalesce(sum(t.amount) filter (where t.type = 'EXPENSE'), 0)::numeric(14,2)::text expense
      from public.transactions t
      join public.legacy_import_maps m
        on m.target_table = 'transactions' and m.target_id = t.id::text
      where m.source_project = $1 and m.source_table = 'transactions'`,
     [sourceProject],
   );
-  return { imports: result.rows, ledger: ledger.rows[0] };
+  const catalog = await target.query<{ row_count: number }>(
+    "select count(*)::int row_count from public.vaccine_catalog where id = any($1::text[])",
+    [vaccineCatalogIds],
+  );
+  return { imports: result.rows, ledger: ledger.rows[0], vaccineCatalog: catalog.rows[0].row_count };
+}
+
+async function assertExistingMappingsUnchanged(
+  target: PoolClient,
+  data: Awaited<ReturnType<typeof readSourceData>>,
+) {
+  const mappedRows = [
+    ...data.transactions.map((row) => ({ table: "transactions", id: row.id, hash: sourceHash(row) })),
+    ...data.dashboards.map((row) => ({ table: "yudan_dashboards", id: row.user_id, hash: sourceHash(row) })),
+    ...data.growth.map((row) => ({ table: "yudan_weight_records", id: row.id, hash: sourceHash(row) })),
+    ...data.vaccineRecords.map((row) => ({ table: "yudan_vaccine_records", id: row.id, hash: sourceHash(row) })),
+  ];
+  const existing = await target.query<{ source_table: string; source_id: string; source_hash: string | null }>(
+    `select source_table, source_id, source_hash
+     from public.legacy_import_maps where source_project = $1`,
+    [sourceProject],
+  );
+  const currentHashes = new Map(mappedRows.map((row) => [`${row.table}:${row.id}`, row.hash]));
+  for (const row of existing.rows) {
+    const current = currentHashes.get(`${row.source_table}:${row.source_id}`);
+    if (!current || current !== row.source_hash) {
+      throw new Error(`Legacy source changed after import: ${row.source_table}/${row.source_id}`);
+    }
+  }
+}
+
+function assertReconciled(
+  sourceReport: ReturnType<typeof buildSourceReport>,
+  imported: Awaited<ReturnType<typeof targetReport>>,
+) {
+  const importCounts = new Map(imported.imports.map((row) => [String(row.source_table), Number(row.imported_rows)]));
+  const expected = sourceReport.sources.yudan;
+  const mismatches = [
+    ["transactions", imported.ledger.row_count, expected.ledger.count],
+    ["transaction income", imported.ledger.income, expected.ledger.income],
+    ["transaction expense", imported.ledger.expense, expected.ledger.expense],
+    ["dashboard maps", importCounts.get("yudan_dashboards") ?? 0, expected.babyProfiles],
+    ["growth maps", importCounts.get("yudan_weight_records") ?? 0, expected.growthRecords],
+    ["vaccine record maps", importCounts.get("yudan_vaccine_records") ?? 0, expected.vaccineRecords],
+    ["vaccine catalog", imported.vaccineCatalog, expected.vaccineCatalog],
+  ].filter(([, actual, wanted]) => String(actual) !== String(wanted));
+  if (mismatches.length) {
+    throw new Error(`Post-import reconciliation failed: ${JSON.stringify(mismatches)}`);
+  }
 }
 
 async function main() {
   const sourceUrl = requireEnvironment("LEGACY_YUDAN_DATABASE_URL");
-  const data = await readSourceData(sourceUrl);
-  console.log(JSON.stringify(buildSourceReport(data), null, 2));
+  const pantryUrl = requireEnvironment("LEGACY_PANTRY_DATABASE_URL");
+  const [data, pantry] = await Promise.all([readSourceData(sourceUrl), readPantryData(pantryUrl)]);
+  const sourceReport = buildSourceReport(data, pantry);
+  await outputReport(sourceReport);
 
   if (!applyChanges) {
     console.log("Dry-run complete. Re-run with --apply after reviewing the report.");
     return;
+  }
+
+  if (!sourceReport.safeToApply) {
+    throw new Error("Dry-run checks are not all PASS; refusing to write to the target database");
+  }
+  if (process.env.MIGRATION_BACKUP_CONFIRMED !== "YES") {
+    throw new Error("MIGRATION_BACKUP_CONFIRMED=YES is required after verifying backup/PITR");
+  }
+  if (process.env.MIGRATION_TARGET_CONFIRM !== "yudan-wupin") {
+    throw new Error("MIGRATION_TARGET_CONFIRM=yudan-wupin is required");
   }
 
   const targetUrl = requireEnvironment("DIRECT_URL");
@@ -405,10 +538,13 @@ async function main() {
     await target.query("set local lock_timeout = '5s'");
     await target.query("select pg_advisory_xact_lock(hashtext('yudan-legacy-import'))");
     await assertTarget(target, householdId, actorUserId);
+    await assertExistingMappingsUnchanged(target, data);
     await importLedger(target, data.transactions, householdId, actorUserId);
     await importHealth(target, data, householdId, babyName);
-    console.log(JSON.stringify(await targetReport(target), null, 2));
+    const imported = await targetReport(target, data.vaccineCatalog.map((row) => row.id));
+    assertReconciled(sourceReport, imported);
     await target.query("commit");
+    await outputReport({ ...sourceReport, target: imported, committed: true });
   } catch (error) {
     await target.query("rollback");
     throw error;

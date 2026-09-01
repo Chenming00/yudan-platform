@@ -14,6 +14,8 @@
 - Vercel 部署主应用；
 - Cloudflare R2 保存图片和附件。
 
+生产域名规划：主站 `https://cyz.ykn.cm`，公开资源 `https://cf-cyz.ykn.cm`；家庭私密资源只通过短时签名地址读取。
+
 ## 本地运行
 
 1. 复制 `.env.example` 为 `.env.local`，按需填写本地环境变量；
