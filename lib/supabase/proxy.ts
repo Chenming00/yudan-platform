@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { isUntrustedMutationRequest } from "@/lib/api/request-security";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 const publicRoutes = ["/login", "/register", "/forgot-password", "/reset-password", "/auth"];
@@ -12,6 +13,13 @@ function isPublicRoute(pathname: string) {
 }
 
 export async function updateSession(request: NextRequest) {
+  if (isUntrustedMutationRequest(request)) {
+    return NextResponse.json(
+      { success: false, error: { code: "PERMISSION_DENIED", message: "跨来源写请求已被拒绝。" } },
+      { status: 403 },
+    );
+  }
+
   let response = NextResponse.next({ request });
   const { url, publishableKey } = getSupabasePublicConfig();
 

@@ -22,6 +22,12 @@ export default defineConfig({
     : {
         command: "npm run dev",
         url: "http://127.0.0.1:3000",
+        env: {
+          ...process.env,
+          NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3000",
+          NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
+        },
         reuseExistingServer: !process.env.CI,
       },
 });

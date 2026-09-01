@@ -6,7 +6,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 
 export function AuthCard({
@@ -31,7 +30,7 @@ export function AuthCard({
       </Link>
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl">{title}</CardTitle>
+          <h1 className="font-heading text-xl leading-snug font-medium">{title}</h1>
           <CardDescription>{description}</CardDescription>
         </CardHeader>
         <CardContent>{children}</CardContent>
