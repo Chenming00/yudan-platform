@@ -57,6 +57,8 @@ Vercel、Supabase、可选 GitHub Provider 和 Cloudflare 的真实密钥只配�
 - 生产环境 Custom SMTP、发件域名与邮件速率限制；
 - Before User Created Hook → 数据库邀请码校验函数。
 
+应用端认证配置与 `yudan-wupin` 上线顺序详见 `docs/auth/README.md`。数据库 Migration 和 Hook 尚未经过备份 Gate 前，不得直接应用到目标生产项目。
+
 仅在启用可选 GitHub Identity 时额外配置：
 
 - GitHub OAuth App → Supabase Auth callback；

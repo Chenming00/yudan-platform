@@ -1,6 +1,7 @@
-import { Bell, ChevronDown, Plus } from "lucide-react";
+import { Bell, ChevronDown, LogOut, Plus } from "lucide-react";
 import Link from "next/link";
 
+import { logoutAction } from "@/app/(auth)/actions";
 import { PlatformNav } from "@/components/navigation/platform-nav";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -12,8 +13,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { PlatformActor } from "@/lib/auth/session";
 
-export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) {
+export function AppShell({
+  actor,
+  children,
+}: Readonly<{ actor: PlatformActor; children: React.ReactNode }>) {
+  const displayName = actor.displayName ?? actor.email.split("@")[0];
+  const initials = displayName.slice(0, 2).toUpperCase();
   return (
     <div className="min-h-svh bg-background">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r bg-sidebar lg:flex lg:flex-col">
@@ -59,21 +66,29 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
               <DropdownMenuTrigger asChild>
                 <Button aria-label="打开用户菜单" className="gap-2" variant="ghost">
                   <Avatar className="size-6">
-                    <AvatarFallback>WC</AvatarFallback>
+                    <AvatarFallback>{initials}</AvatarFallback>
                   </Avatar>
-                  <span className="hidden text-xs sm:inline">家庭管理员</span>
+                  <span className="hidden max-w-28 truncate text-xs sm:inline">{displayName}</span>
                   <ChevronDown className="size-3.5 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
-                  <p>家庭管理员</p>
-                  <p className="font-normal text-muted-foreground">登录后显示账户信息</p>
+                  <p>{displayName}</p>
+                  <p className="truncate font-normal text-muted-foreground">{actor.email}</p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/settings">账户与权限</Link>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <form action={logoutAction}>
+                  <DropdownMenuItem asChild>
+                    <button className="w-full" type="submit">
+                      <LogOut />退出登录
+                    </button>
+                  </DropdownMenuItem>
+                </form>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
