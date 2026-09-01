@@ -5,7 +5,7 @@
 | 服务 | 职责 |
 |---|---|
 | Vercel | Next.js 页面、Server Actions、Route Handlers、Preview 与生产发布 |
-| Supabase | PostgreSQL、GitHub Auth、会话与 RLS 纵深防御 |
+| Supabase | PostgreSQL、邮箱密码 Auth、可选 GitHub Identity、会话与 RLS |
 | Cloudflare | R2 图片/附件存储与 CDN 分发 |
 
 ## 数据库连接
@@ -46,23 +46,30 @@
 - `SUPER_ADMIN_EMAIL`
 - 所有 R2 凭据与 Bucket 名称
 
-Vercel、Supabase、GitHub 和 Cloudflare 的真实密钥只配置在服务控制台；`.env.example` 只保存变量名和非敏感本地默认值。
+Vercel、Supabase、可选 GitHub Provider 和 Cloudflare 的真实密钥只配置在服务控制台；`.env.example` 只保存变量名和非敏感本地默认值。
 
-## OAuth 地址
+## Auth 地址与邮件
 
-需要同时配置：
+邮箱密码注册需要配置：
+
+- Supabase Site URL → 正式 Vercel 域名；
+- Redirect URLs → 本地、受信任 Preview 和正式的确认邮箱、找回密码回调；
+- 生产环境 Custom SMTP、发件域名与邮件速率限制；
+- Before User Created Hook → 数据库邀请码校验函数。
+
+仅在启用可选 GitHub Identity 时额外配置：
 
 - GitHub OAuth App → Supabase Auth callback；
-- Supabase Site URL → 正式 Vercel 域名；
-- Supabase Redirect URLs → 本地、受信任 Preview 模式和正式 `/auth/callback`；
+- Supabase Redirect URLs → 对应环境的 `/auth/callback`；
 - 禁止接受任意 `next` 或 redirect host，应用回调只允许同源相对路径。
 
 ## 发布前检查
 
 - Supabase Migration 与数据库安全检查通过；
 - public schema 中可由 Data API 访问的表均启用正确 RLS；
-- GitHub 登录、邀请码注册、已注册用户再次登录均通过；
+- 邮箱密码邀请码注册、邮箱确认、登录和找回密码均通过；
+- 无 RegistrationIntent 的直接 Supabase signup 被 Hook 拒绝；
+- 如果启用 GitHub，可选绑定与解绑测试通过；
 - Preview 环境不能访问生产 Secret；
 - 私有 R2 对象匿名访问失败；
 - 生产构建、回滚和数据库恢复流程已演练。
-

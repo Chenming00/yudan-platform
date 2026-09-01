@@ -4,13 +4,13 @@
 
 ## 当前状态
 
-当前分支完成 A00/A01 基础阶段：架构契约、Next.js App Router 工程、shadcn/ui 设计系统、模块入口、测试与 CI。业务数据库、GitHub 登录、邀请码、权限和历史数据迁移按 `开发任务计划.md` 的 Gate 顺序继续实现。
+当前分支完成 A00/A01 基础阶段：架构契约、Next.js App Router 工程、shadcn/ui 设计系统、模块入口、测试与 CI。业务数据库、邮箱密码登录、邀请码、权限和历史数据迁移按 `开发任务计划.md` 的 Gate 顺序继续实现。
 
 ## 技术架构
 
 - Next.js 16 + React 19 + TypeScript；
 - shadcn/ui + Radix UI + Tailwind CSS；
-- Supabase PostgreSQL 与 Supabase Auth（GitHub OAuth）；
+- Supabase PostgreSQL 与 Supabase Auth（邮箱密码为主，GitHub 可选）；
 - Vercel 部署主应用；
 - Cloudflare R2 保存图片和附件。
 
@@ -41,4 +41,3 @@ npm run build
 - `docs/adr/`：架构决策；
 - `docs/contracts/`：公共接口与认证契约；
 - `docs/deployment/platform.md`：Supabase、Vercel 与 Cloudflare 部署基线。
-
