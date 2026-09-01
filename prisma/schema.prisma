@@ -398,6 +398,15 @@ model Transaction {
   @@map("transactions")
 }
 
+enum MediaStatus {
+  PENDING
+  READY
+  DELETE_PENDING
+  DELETED
+
+  @@map("media_status")
+}
+
 model TransactionAllocation {
   id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   householdId        String              @map("household_id") @db.Uuid
@@ -739,12 +748,19 @@ model MediaAsset {
   objectKey        String          @unique @map("object_key") @db.Text
   bucket           String          @db.Text
   visibility       MediaVisibility @default(PRIVATE)
+  status           MediaStatus     @default(PENDING)
+  originalName     String?         @map("original_name") @db.Text
   mimeType         String          @map("mime_type") @db.Text
   byteSize         BigInt          @map("byte_size")
   checksumSha256   String?         @map("checksum_sha256") @db.VarChar(64)
+  etag             String?         @db.Text
   width            Int?
   height           Int?
   metadata         Json?
+  uploadExpiresAt  DateTime?       @map("upload_expires_at") @db.Timestamptz(3)
+  confirmedAt      DateTime?       @map("confirmed_at") @db.Timestamptz(3)
+  deletionAttempts Int             @default(0) @map("deletion_attempts")
+  deletionError    String?         @map("deletion_error") @db.Text
   createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   deletedAt        DateTime?       @map("deleted_at") @db.Timestamptz(3)
   household        Household       @relation(fields: [householdId], references: [id], onDelete: Cascade)
@@ -753,6 +769,8 @@ model MediaAsset {
 
   @@index([householdId, createdAt(sort: Desc)])
   @@index([uploadedByUserId])
+  @@index([status, uploadExpiresAt])
+  @@index([status, deletedAt])
   @@map("media_assets")
 }
 
