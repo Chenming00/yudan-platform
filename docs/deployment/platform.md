@@ -32,6 +32,8 @@
 
 数据库变更使用两阶段发布：先运行向后兼容 Migration 并验证，再提升已验证的应用构建。出现应用问题时回滚 Vercel Deployment；数据库变更使用预先写好的兼容或回退步骤，不能假定应用回滚会自动回滚数据库。
 
+仓库提供两个互相独立的人工工作流：`Database migration` 负责受保护的数据库环境，`Verify and promote deployment` 负责 Preview E2E 和同一构建产物 Promote。详细操作见 `docs/runbooks/release.md`。
+
 截至 2026-09-01，Vercel 中仍只有两个旧项目，尚未创建 `yudan-platform`。目标项目创建后再绑定 `cyz.ykn.cm`；在目标 Schema、环境变量和 Preview 验证通过前，不切换生产域名。
 
 ## 环境变量范围
@@ -49,6 +51,8 @@
 - `DIRECT_URL`
 - `SUPER_ADMIN_EMAIL`
 - 所有 R2 凭据与 Bucket 名称
+
+环境隔离标记 `DEPLOYMENT_DATABASE_SCOPE`、`R2_ENVIRONMENT_SCOPE` 和生产项目标识 `PRODUCTION_SUPABASE_PROJECT_REF` 不属于 Secret，但必须按 Preview / Production 分别配置。`npm run deployment:check` 会拒绝 Preview 连接生产 Supabase 或生产 R2 Bucket。
 
 生产非敏感值固定为：
 

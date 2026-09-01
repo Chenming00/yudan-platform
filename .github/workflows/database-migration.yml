@@ -1,0 +1,68 @@
+name: Database migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Isolated preview first; production requires a protected GitHub environment
+        required: true
+        type: choice
+        options: [preview, production]
+        default: preview
+      gate_confirmed:
+        description: Enter ISOLATED for Preview; production requires YES after backup verification
+        required: true
+        type: string
+      target_confirm:
+        description: Production target must be exactly yudan-wupin
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-migration-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: database-${{ inputs.target }}
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      TEST_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+    steps:
+      - name: Enforce migration confirmations
+        env:
+          GATE_CONFIRMED: ${{ inputs.gate_confirmed }}
+          TARGET_CONFIRM: ${{ inputs.target_confirm }}
+          DEPLOYMENT_TARGET: ${{ inputs.target }}
+        run: |
+          if [ "$DEPLOYMENT_TARGET" = "preview" ] && [ "$GATE_CONFIRMED" != "ISOLATED" ]; then exit 1; fi
+          if [ "$DEPLOYMENT_TARGET" = "production" ] && [ "$GATE_CONFIRMED" != "YES" ]; then exit 1; fi
+          if [ "$DEPLOYMENT_TARGET" = "production" ] && [ "$TARGET_CONFIRM" != "yudan-wupin" ]; then exit 1; fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate migration inputs
+        run: npm run db:validate
+
+      - name: Apply committed migrations
+        run: npm run db:migrate:deploy
+
+      - name: Verify database security gates
+        run: npx vitest run tests/integration/database-gates.test.ts

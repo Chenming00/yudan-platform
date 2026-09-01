@@ -13,6 +13,10 @@ function isPublicRoute(pathname: string) {
 }
 
 export async function updateSession(request: NextRequest) {
+  if (request.method === "GET" && request.nextUrl.pathname === "/api/health") {
+    return NextResponse.next({ request });
+  }
+
   if (isUntrustedMutationRequest(request)) {
     return NextResponse.json(
       { success: false, error: { code: "PERMISSION_DENIED", message: "跨来源写请求已被拒绝。" } },

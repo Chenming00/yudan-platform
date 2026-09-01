@@ -1,5 +1,12 @@
 import { expect, test } from "@playwright/test";
 
+test("exposes a non-cached liveness endpoint without authentication", async ({ request }) => {
+  const response = await request.get("/api/health");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["cache-control"]).toContain("no-store");
+  await expect(response.json()).resolves.toMatchObject({ status: "ok", service: "yudan-platform" });
+});
+
 test("redirects a signed-out visitor to login without leaking the protected page", async ({ page }) => {
   await page.goto("/");
 

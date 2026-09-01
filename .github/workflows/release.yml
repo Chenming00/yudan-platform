@@ -1,0 +1,77 @@
+name: Verify and promote deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_url:
+        description: Full HTTPS URL of the Vercel Preview deployment
+        required: true
+        type: string
+      promote_to_production:
+        description: Promote this exact verified artifact to production
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-promotion
+  cancel-in-progress: false
+
+jobs:
+  verify-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DEPLOYMENT_URL: ${{ inputs.deployment_url }}
+      PLAYWRIGHT_BASE_URL: ${{ inputs.deployment_url }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+
+    steps:
+      - name: Validate deployment URL
+        run: node -e "const u=new URL(process.env.DEPLOYMENT_URL);if(u.protocol!=='https:')process.exit(1)"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify readiness
+        run: >-
+          curl --fail --silent --show-error --retry 3
+          -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET"
+          "$DEPLOYMENT_URL/api/health?mode=ready"
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Preview browser checks
+        run: npm run test:e2e
+
+  promote:
+    if: inputs.promote_to_production
+    needs: verify-preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      DEPLOYMENT_URL: ${{ inputs.deployment_url }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+    steps:
+      - name: Promote the verified artifact
+        run: npx --yes vercel@59.10.0 promote "$DEPLOYMENT_URL" --yes --token "$VERCEL_TOKEN"
+
+      - name: Verify production liveness
+        run: curl --fail --silent --show-error --retry 3 https://cyz.ykn.cm/api/health
