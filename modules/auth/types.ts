@@ -1,16 +1,7 @@
 import type { ActionContext } from "@/lib/types/platform";
+import type { permissions } from "@/lib/db/permission-catalog";
 
-export type PermissionCode =
-  | "ledger.read"
-  | "ledger.write"
-  | "care.read"
-  | "care.write"
-  | "wardrobe.read"
-  | "wardrobe.write"
-  | "consumables.read"
-  | "consumables.write"
-  | "members.manage"
-  | "invitations.manage";
+export type PermissionCode = (typeof permissions)[number][0];
 
 export type AuthenticationMethod = "EMAIL_PASSWORD" | "GITHUB";
 

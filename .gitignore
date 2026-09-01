@@ -1,5 +1,7 @@
 # dependencies
 /node_modules
+/.migration-sources/
+/generated/prisma/
 
 # Next.js
 /.next/
