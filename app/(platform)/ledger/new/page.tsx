@@ -1,16 +1,21 @@
-import { ReceiptText } from "lucide-react";
+import { TransactionForm } from "@/components/ledger/transaction-form";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { createActionContext } from "@/lib/auth/authorization";
+import { requirePlatformActor } from "@/lib/auth/session";
+import { getLedgerOptions } from "@/modules/ledger";
 
-import { ModulePlaceholder } from "@/components/modules/module-placeholder";
+import { createTransactionAction } from "../actions";
 
-export default function NewLedgerEntryPage() {
+export default async function NewLedgerEntryPage() {
+  const actor = await requirePlatformActor();
+  const householdId = actor.householdIds[0];
+  if (!householdId) return <p>尚未加入家庭空间。</p>;
+  const options = await getLedgerOptions(createActionContext(actor.userId, householdId));
   return (
-    <ModulePlaceholder
-      description="一次付款可以拆分到儿童保健、衣柜、消耗品和其他分类，并在一个事务中保存。"
-      features={["付款信息", "用途拆分", "业务记录"]}
-      icon={ReceiptText}
-      primaryAction="保存账目"
-      title="新增账目"
-    />
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div><p className="text-sm text-muted-foreground">家庭账本</p><h1 className="font-heading text-2xl font-semibold">新增账目</h1></div>
+      <Card><CardHeader><CardTitle>付款与用途</CardTitle><CardDescription>账目总额由用途拆分自动汇总，避免重复统计。</CardDescription></CardHeader><CardContent><TransactionForm action={createTransactionAction} options={options} /></CardContent></Card>
+    </div>
   );
 }
 

@@ -5,6 +5,17 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client";
 import { permissions, roles } from "../lib/db/permission-catalog";
 
+const defaultCategories = [
+  ["care", "儿童保健", "CHILD_CARE"],
+  ["wardrobe", "衣柜", "WARDROBE"],
+  ["consumables", "消耗品", "CONSUMABLES"],
+  ["food", "餐饮", "OTHER"],
+  ["transport", "交通", "OTHER"],
+  ["home", "居家", "OTHER"],
+  ["income", "收入", "OTHER"],
+  ["other", "其他", "OTHER"],
+] as const;
+
 const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 
 if (!connectionString) {
@@ -50,6 +61,33 @@ async function main() {
         permissionId: permissionIds.get(code)!,
       })),
       skipDuplicates: true,
+    });
+  }
+
+  const households = await prisma.household.findMany({ select: { id: true } });
+  for (const household of households) {
+    for (const [code, name, module] of defaultCategories) {
+      await prisma.category.upsert({
+        where: { householdId_code: { householdId: household.id, code } },
+        update: { name, module, isSystem: true, isActive: true },
+        create: {
+          householdId: household.id,
+          code,
+          name,
+          module,
+          isSystem: true,
+        },
+      });
+    }
+
+    await prisma.paymentAccount.upsert({
+      where: { householdId_name: { householdId: household.id, name: "默认账户" } },
+      update: { isActive: true },
+      create: {
+        householdId: household.id,
+        name: "默认账户",
+        type: "CASH",
+      },
     });
   }
 }

@@ -382,15 +382,19 @@ model Transaction {
   createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt        DateTime?               @map("deleted_at") @db.Timestamptz(3)
+  refundOfTransactionId String?             @map("refund_of_transaction_id") @db.Uuid
   household        Household               @relation(fields: [householdId], references: [id], onDelete: Cascade)
   paymentAccount   PaymentAccount?         @relation(fields: [paymentAccountId], references: [id], onDelete: SetNull)
   createdBy        AppUser                 @relation("transaction_creator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   allocations      TransactionAllocation[]
+  refundOf          Transaction?            @relation("transaction_refunds", fields: [refundOfTransactionId], references: [id], onDelete: Restrict)
+  refunds           Transaction[]           @relation("transaction_refunds")
 
   @@index([householdId, transactionAt(sort: Desc), id])
   @@index([householdId, type, transactionAt(sort: Desc)])
   @@index([paymentAccountId])
   @@index([createdByUserId])
+  @@index([refundOfTransactionId])
   @@map("transactions")
 }
 

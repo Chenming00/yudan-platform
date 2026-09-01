@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-当前已完成平台工程、A02 数据库底座和 A03 认证权限应用层：模块化 Next.js 外壳、shadcn/ui、Prisma 模型、Supabase SSR 会话、邮箱密码登录、邀请码注册、邮箱确认与找回密码、William 超级管理员引导、服务端 RBAC、成员与邀请管理、RLS、旧库存兼容 Migration，以及 `YUDAN` 到 `yudan-wupin` 的幂等导入脚本。后续由同一个 GPT 按 `开发任务计划.md` 的工作包顺序继续实现。
+当前已完成平台工程、A02 数据库底座、A03 认证权限和 A04 统一账本：模块化 Next.js 外壳、shadcn/ui、Prisma 模型、Supabase SSR 会话、邮箱密码登录、邀请码注册、William 超级管理员引导、服务端 RBAC，以及收入、支出、退款、跨模块拆分、筛选统计、游标分页、审计和旧账本兼容接口。`YUDAN` 到保留的 `yudan-wupin` 数据库使用幂等迁移脚本，生产迁移必须在备份和演练后执行。
 
 ## 技术架构
 
@@ -51,6 +51,7 @@ npm run build
 - `开发任务计划.md`：工作包、依赖与 Gate；
 - `docs/database/`：Schema、ERD、认证钩子、历史数据迁移与回滚；
 - `docs/auth/`：登录、邀请码、Auth Hook、GitHub 与生产安全配置；
+- `docs/ledger/`：统一账本业务规则、接口与退款约束；
 - `docs/security/`：依赖安全审计与已知风险处置；
 - `docs/adr/`：架构决策；
 - `docs/contracts/`：公共接口与认证契约；
