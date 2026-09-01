@@ -404,6 +404,7 @@ async function importHealth(
     );
   }
 
+  const importedVaccineFacts = new Map<string, string>();
   for (const row of data.vaccineRecords) {
     const babyProfileId = userMap.get(row.user_id);
     if (!babyProfileId) throw new Error(`No baby mapping for legacy user ${row.user_id}`);
@@ -413,22 +414,42 @@ async function importHealth(
     );
     if (exists.rowCount) continue;
 
-    await target.query(
-      `insert into public.vaccine_records
-        (id, household_id, baby_profile_id, vaccine_id, administered_on, place,
-         batch_no, manufacturer, note, legacy_id, created_at, updated_at)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-      [
-        row.id, householdId, babyProfileId, row.plan_id, row.administered_on,
-        row.place, row.batch_no, row.manufacturer, row.note,
-        row.legacy_id ?? row.id, row.created_at, row.updated_at,
-      ],
-    );
+    const factKey = `${babyProfileId}:${row.plan_id}:${row.administered_on}`;
+    let targetId = importedVaccineFacts.get(factKey);
+
+    if (!targetId) {
+      const conflictingFact = await target.query<{ id: string }>(
+        `select id from public.vaccine_records
+         where baby_profile_id = $1 and vaccine_id = $2 and administered_on = $3
+         limit 1`,
+        [babyProfileId, row.plan_id, row.administered_on],
+      );
+      if (conflictingFact.rowCount) {
+        throw new Error(
+          `Target vaccine fact already exists without an import map: ${row.plan_id}/${row.administered_on}`,
+        );
+      }
+
+      await target.query(
+        `insert into public.vaccine_records
+          (id, household_id, baby_profile_id, vaccine_id, administered_on, place,
+           batch_no, manufacturer, note, legacy_id, created_at, updated_at)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        [
+          row.id, householdId, babyProfileId, row.plan_id, row.administered_on,
+          row.place, row.batch_no, row.manufacturer, row.note,
+          row.legacy_id ?? row.id, row.created_at, row.updated_at,
+        ],
+      );
+      targetId = row.id;
+      importedVaccineFacts.set(factKey, targetId);
+    }
+
     await target.query(
       `insert into public.legacy_import_maps
         (source_project, source_table, source_id, target_table, target_id, source_hash)
-       values ($1, 'yudan_vaccine_records', $2, 'vaccine_records', $2, $3)`,
-      [sourceProject, row.id, sourceHash(row)],
+       values ($1, 'yudan_vaccine_records', $2, 'vaccine_records', $3, $4)`,
+      [sourceProject, row.id, targetId, sourceHash(row)],
     );
   }
 }
