@@ -6,8 +6,8 @@ import { redirect } from "next/navigation";
 import { createActionContext } from "@/lib/auth/authorization";
 import { requirePlatformActor } from "@/lib/auth/session";
 import { AppError } from "@/lib/errors/app-error";
+import { createCompositeRefund } from "@/application";
 import {
-  createRefund,
   createTransaction,
   deleteTransaction,
   updateTransaction,
@@ -114,8 +114,8 @@ export async function createRefundAction(
   if (!parsed.success) return { status: "error", message: "请检查退款金额和拆分明细。", fieldErrors: parsed.error.flatten().fieldErrors };
   let refundId: string;
   try {
-    const refund = await createRefund(await contextForCurrentHousehold(), parsed.data);
-    refundId = refund.id;
+    const refund = await createCompositeRefund(await contextForCurrentHousehold(), { ...parsed.data, idempotencyKey: formData.get("idempotencyKey")?.toString() || crypto.randomUUID() });
+    refundId = refund.transactionId;
     revalidatePath("/ledger");
   } catch (error) {
     return formError(error);

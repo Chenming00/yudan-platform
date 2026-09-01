@@ -70,6 +70,7 @@ export function TransactionForm({
   mode?: "transaction" | "refund";
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [allocations, setAllocations] = useState<AllocationDraft[]>(() =>
     initial?.allocations.length
       ? initial.allocations.map((item) => ({
@@ -91,6 +92,7 @@ export function TransactionForm({
 
   return (
     <form action={formAction} className="space-y-6">
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
       <input name="amount" type="hidden" value={total} />
       <input name="allocationCount" type="hidden" value={allocations.length} />
 
