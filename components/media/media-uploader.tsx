@@ -16,7 +16,7 @@ async function sha256(file: File) {
   return [...new Uint8Array(hash)].map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 
-export function MediaUploader({ visibility = "PRIVATE", onUploaded }: { visibility?: MediaVisibility; onUploaded?: (asset: MediaAssetView) => void }) {
+export function MediaUploader({ visibility = "PRIVATE", onUploaded }: { visibility?: MediaVisibility; onUploaded?: (asset: MediaAssetView) => void | Promise<void> }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
   const [message, setMessage] = useState<string>();
@@ -43,7 +43,7 @@ export function MediaUploader({ visibility = "PRIVATE", onUploaded }: { visibili
       if (!confirmBody.success) throw new Error(confirmBody.error.message);
       setStatus("done");
       setMessage("文件已安全保存。");
-      onUploaded?.(confirmBody.data);
+      await onUploaded?.(confirmBody.data);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "上传失败，请稍后重试。");

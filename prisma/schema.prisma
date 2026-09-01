@@ -422,6 +422,7 @@ model TransactionAllocation {
   category           Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   careRecord         CareRecord?
   wardrobePurchase   WardrobePurchase?
+  wardrobeSale       WardrobeItem?
   consumablePurchase ConsumablePurchase?
 
   @@index([householdId, module, createdAt(sort: Desc)])
@@ -560,6 +561,7 @@ model WardrobeItem {
   householdId        String             @map("household_id") @db.Uuid
   babyProfileId      String?            @map("baby_profile_id") @db.Uuid
   wardrobePurchaseId String?            @map("wardrobe_purchase_id") @db.Uuid
+  saleTransactionAllocationId String?   @unique @map("sale_transaction_allocation_id") @db.Uuid
   name               String             @db.Text
   category           String?            @db.Text
   size               String?            @db.Text
@@ -573,6 +575,7 @@ model WardrobeItem {
   household          Household          @relation(fields: [householdId], references: [id], onDelete: Cascade)
   babyProfile        BabyProfile?       @relation(fields: [babyProfileId], references: [id], onDelete: SetNull)
   wardrobePurchase   WardrobePurchase?  @relation(fields: [wardrobePurchaseId], references: [id], onDelete: SetNull)
+  saleTransactionAllocation TransactionAllocation? @relation(fields: [saleTransactionAllocationId], references: [id], onDelete: SetNull)
 
   @@index([householdId, status, category])
   @@index([babyProfileId])
