@@ -707,7 +707,7 @@ CREATE INDEX "product_groups_household_id_is_active_sort_order_idx" ON "product_
 CREATE INDEX "product_group_items_household_id_group_code_sort_order_idx" ON "product_group_items"("household_id", "group_code", "sort_order");
 
 -- CreateIndex
-CREATE INDEX "product_group_items_product_code_idx" ON "product_group_items"("product_code");
+CREATE INDEX IF NOT EXISTS "product_group_items_product_code_idx" ON "product_group_items"("product_code");
 
 -- CreateIndex
 CREATE INDEX "inventory_batches_household_id_product_code_status_expiry_d_idx" ON "inventory_batches"("household_id", "product_code", "status", "expiry_date");
